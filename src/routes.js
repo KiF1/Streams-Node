@@ -21,35 +21,20 @@ export const routes = [
     method: 'POST',
     path: buildRoutePath('/tasks'),
     handler: (req, res) => {
+        const { title, description } = req.body;
+
+        if (!title) {
+          return res.writeHead(400).end(
+            JSON.stringify({ message: 'title is required' }),
+          )
+        }
   
-      if (req.headers['Content-type'] && req.headers['Content-type'].includes('multipart/form-data')) {
-        const form = formidable();
-  
-        form.parse(req, async (err, fields, files) => {
-          if (files && files.csv) {
-            const stream = fs.createReadStream(files.csv.path);
-  
-            const linesParse = stream.pipe(csv({ separator: ',' }));
-  
-            for await (const line of linesParse) {
-              const { title, description } = line;
-              const task = {
-                id: randomUUID(),
-                completed_at: null,
-                title,
-                description,
-                created_at: new Date(),
-                updated_at: new Date(),
-              }
-  
-              database.insert('tasks', task);
-            }
-          }
-  
-          return res.writeHead(201).end();
-        });
-      } else {
-        const { title, description } = req.body
+        if (!description) {
+          return res.writeHead(400).end(
+            JSON.stringify({message: 'description is required' })
+          )
+        }
+
         const task = {
           id: randomUUID(),
           completed_at: null,
@@ -62,47 +47,57 @@ export const routes = [
         database.insert('tasks', task);
         return res.writeHead(201).end();
       }
-    }
   },
   {
     method: 'PUT',
     path: buildRoutePath('/tasks/:id'),
     handler: (req, res) => {
-      try {
         const { id } = req.params;
         const { title, description } = req.body;
+        const [task] = database.select('tasks', { id });
+
+        if (!title || !description) {
+          return res.writeHead(400).end(
+            JSON.stringify({ message: 'title or description are required' })
+          )
+        }
+
+        if (!task) {
+          return res.writeHead(404).end()
+        }
+
         database.update('tasks', id, title, description)
         return res.writeHead(204).end();
-      } catch {
-        return res.status(500).send('Id não encontrado');
-      }
     }
   },
   {
     method: 'PATCH',
     path: buildRoutePath('/tasks/:id/complete'),
     handler: (req, res) => {
-      try {
         const { id } = req.params;
+        const [task] = database.select('tasks', { id })
         const date = new Date();
+
+        if (!task) {
+          return res.writeHead(404).end()
+        }
+
         database.updateTaskCompleted('tasks', id, date);
         return res.writeHead(204).end();
-      } catch {
-        return res.status(500).send('Id não encontrado');
-      }
     }
   },
   {
     method: 'DELETE',
     path: buildRoutePath('/tasks/:id'),
     handler: (req, res) => {
-      try{
-        const { id } = req.params;
+        const { id } = req.params;const [task] = database.select('tasks', { id })
+
+        if (!task) {
+          return res.writeHead(404).end()
+        }
+
         database.delete('tasks', id)
         return res.writeHead(204).end()
-      } catch {
-        return res.status(500).send('Id não encontrado');
-      }
     }
   },
 ]
